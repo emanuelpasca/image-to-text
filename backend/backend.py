@@ -113,7 +113,6 @@ def upload_file():
 
     result = pytesseract.image_to_string(img)
 
-    # os.remove(path)
 
     if result == "":
         # Deskew image
@@ -123,7 +122,12 @@ def upload_file():
 
         img2 = Image.open(path)
         result = pytesseract.image_to_string(img2)
+
+        os.remove(path)
+
         return jsonify({'result': result})
+
+    os.remove(path)
 
     return jsonify({'result': result})
 
