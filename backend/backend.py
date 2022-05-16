@@ -65,7 +65,6 @@ def getSkewAngle(cvImage) -> float:
         x, y, w, h = rect
         cv2.rectangle(newImage, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
-    # Find largest contour and surround in min area box
     largestContour = contours[0]
     print(len(contours))
     minAreaRect = cv2.minAreaRect(largestContour)
@@ -114,7 +113,7 @@ def upload_file():
     cv2.imwrite(path, no_noise)
 
     # Dilation and Erosion
-    eroded_image = thin_font(no_noise)
+    eroded_image = thick_font(no_noise)
     cv2.imwrite(path, eroded_image)
 
     img = Image.open(path)
