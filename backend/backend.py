@@ -14,7 +14,8 @@ pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files\\Tesseract-OCR\\tesse
 
 # ------------------------------------------------------------------------------------------
 
-def noise_removal(image):
+
+def noise_removal(image):  # scoate pixelii care nu corespund textului
     import numpy as np
     kernel = np.ones((1, 1), np.uint8)
     image = cv2.dilate(image, kernel, iterations=1)
@@ -24,62 +25,67 @@ def noise_removal(image):
     image = cv2.medianBlur(image, 3)
     return (image)
 
-def thin_font(image):
-    image = cv2.bitwise_not(image)
-    kernel = np.ones((2,2),np.uint8)
+
+def thin_font(image):  # face caracterele mai subtiri pentru a fi mai usor de recunoscut de OCR
+    image = cv2.bitwise_not(image)  # convertim background-ul la negru si fontul la alb
+    kernel = np.ones((2, 2), np.uint8)
     image = cv2.erode(image, kernel, iterations=1)
-    image = cv2.bitwise_not(image)
+    image = cv2.bitwise_not(image)  # convertim background-ul inapoi la alb si fontul la negru
     return (image)
 
-def thick_font(image):
+def thick_font(image):  # face caracterele mai groase
     import numpy as np
     image = cv2.bitwise_not(image)
     kernel = np.ones((2,2),np.uint8)
-    image = cv2.dilate(image, kernel, iterations=1)
+    image = cv2.dilate(image, kernel, iterations=1) # expandeaza pixelii
     image = cv2.bitwise_not(image)
     return (image)
 
+
 def getSkewAngle(cvImage) -> float:
-    # Prep image, copy, convert to gray scale, blur, and threshold
+    # Pregatim imaginea, o facem gri si o bluram
     newImage = cvImage.copy()
     gray = cv2.cvtColor(newImage, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (9, 9), 0)
-    thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    thresh = cv2.threshold(
+        blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
 
-    # Apply dilate to merge text into meaningful lines/paragraphs.
-    # Use larger kernel on X axis to merge characters into single line, cancelling out any spaces.
-    # But use smaller kernel on Y axis to separate between different blocks of text
+    # Expandam pixelii pentru a uni textul in paragrafe
+    # Utilizam un kernel mai mare pe axa X pentru a imbina caracterele intro-o singura linie, anuland spatiile.
+    # Folosim kernel mai mic  pe axa Y pentru a separa diferite block-uri de text
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (30, 5))
     dilate = cv2.dilate(thresh, kernel, iterations=2)
 
-    # Find all contours
-    contours, hierarchy = cv2.findContours(dilate, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    contours = sorted(contours, key = cv2.contourArea, reverse = True)
+    # Gasim contururile caracterelor
+    contours, hierarchy = cv2.findContours(
+        dilate, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
     for c in contours:
         rect = cv2.boundingRect(c)
-        x,y,w,h = rect
-        cv2.rectangle(newImage,(x,y),(x+w,y+h),(0,255,0),2)
+        x, y, w, h = rect
+        cv2.rectangle(newImage, (x, y), (x+w, y+h), (0, 255, 0), 2)
 
     # Find largest contour and surround in min area box
     largestContour = contours[0]
-    print (len(contours))
+    print(len(contours))
     minAreaRect = cv2.minAreaRect(largestContour)
     cv2.imwrite("temp/boxes.jpg", newImage)
-    # Determine the angle. Convert it to the value that was originally used to obtain skewed image
+    # Determinam unghiul de rotire.
     angle = minAreaRect[-1]
     if angle < -45:
         angle = 90 + angle
     return -1.0 * angle
-# Rotate the image around its center
+
+# Rotim imaginea in jurul centrului
 def rotateImage(cvImage, angle: float):
     newImage = cvImage.copy()
     (h, w) = newImage.shape[:2]
     center = (w // 2, h // 2)
     M = cv2.getRotationMatrix2D(center, angle, 1.0)
-    newImage = cv2.warpAffine(newImage, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
+    newImage = cv2.warpAffine(
+        newImage, M, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
     return newImage
 
-# Deskew image
 def deskew(cvImage):
     angle = getSkewAngle(cvImage)
     return rotateImage(cvImage, -1.0 * angle)
@@ -90,6 +96,7 @@ def deskew(cvImage):
 app = Flask(__name__)
 CORS(app)
 
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     file = request.files['img']
@@ -99,6 +106,7 @@ def upload_file():
     path = os.path.join(user_folder, filename)
     file.save(path)
 
+    # binarization
     grayImg = cv2.imread(path, 0)
 
     # Noise removal
@@ -112,7 +120,6 @@ def upload_file():
     img = Image.open(path)
 
     result = pytesseract.image_to_string(img)
-
 
     if result == "":
         # Deskew image
